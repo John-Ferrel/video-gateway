@@ -917,6 +917,10 @@
     $("#billing-detail").textContent = official == null
       ? "No official Modal bill synced; the budget guard uses the conservative job ledger."
       : `Official Modal bill: ${fmtUSD(official)} · conservative ledger: ${fmtUSD(usage.estimated_spend_usd)}. The guard reserves against the larger value.`;
+    const isAdmin = usage.is_admin !== false;
+    const billingActions = $("#billing-sync")?.parentElement;
+    if (billingActions) billingActions.hidden = !isAdmin;
+    if (!isAdmin) $("#billing-reconcile").hidden = true;
     $("#budget-reserved").textContent = fmtUSD(usage.reserved_usd);
     $("#budget-cap").textContent = fmtUSD(usage.soft_budget_usd);
     $("#budget-projected").textContent = fmtUSD(usage.projected_month_usd);

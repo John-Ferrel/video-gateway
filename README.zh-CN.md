@@ -11,7 +11,7 @@ OpenAI 风格的异步视频 API 和专注创作流程的 Web 界面。GPU 运�
 一个足够小、可审计的控制面，只在有任务时保持单张 GPU 温暖；每个计费任务都明确可见，
 进程重启也不会重复提交已提交的任务。
 
-**版本：** `v1.0.0` · **代码许可证：** MIT · **模型许可证：** 见
+**版本：** `v1.1.0` · **代码许可证：** MIT · **模型许可证：** 见
 [许可证与致谢](#许可证与致谢) · **发布说明：**
 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)
 
@@ -158,7 +158,7 @@ Worker 镜像会编译匹配的 H3 NVFP4 prefix-split kernel。模型下载和�
 | 变量 | 默认值 | 用途 |
 |---|---|---|
 | `VIDEO_BACKEND` | `auto` | `modal`、本地演示或自动检测 |
-| `API_KEYS` | 自动生成 | 逗号分隔的 Bearer 密钥 |
+| `API_KEYS` | 自动生成 | 逗号分隔的 key；每个槽位有独立素材库；第一个槽位是管理员 |
 | `PUBLIC_BASE_URL` | 空 | API/媒体 URL 使用的公开源 |
 | `MONTHLY_CREDITS_USD` / `MONTHLY_SOFT_BUDGET_USD` | `30` / `28` | 展示额度与准入软预算 |
 | `MAX_JOB_ESTIMATE_USD` | `0.75` | 单任务最坏估算超过此值时拒绝 |
@@ -169,6 +169,16 @@ Worker 镜像会编译匹配的 H3 NVFP4 prefix-split kernel。模型下载和�
 
 提示词增强是可选的。把 `H3_PROMPT_ENHANCER_*` 指向一个 OpenAI 兼容聊天端点即可；
 `.env.example` 中的示例使用 `deepseek-v4.1-flash`。服务不可用时，生成会回退到用户提示词。
+
+### 多 key 与共享额度
+
+`API_KEYS` 是独立的**素材库槽位**列表。每个 key 只能列出、播放、取消、重试和删除
+自己的视频与批次。GPU 队列、预算、Usage、存储上限和 worker 状态全局共享，
+因此每个 key 不能各自无限消耗，总支出仍受现有软预算约束。
+
+列表中的第一个 key 是管理员 key，用于账单同步、诊断、事件和清理。替换某个槽位的
+key 值可以保留该槽位的素材库；新增用户时在末尾追加新 key。媒体 URL 仍是短期
+capability URL，不要转发给非预期用户。
 
 ## 架构
 
@@ -352,7 +362,7 @@ node --check gateway/static/app.js
 worker 请求构建。本地后端是完整端到端路径：生成 MP4、写结果、转码、封面、队列和
 Range 请求都会被真实执行。
 
-参考验证结果：**41 个测试通过**、Ruff 干净、桌面/移动端浏览器审计没有 console
+参考验证结果：**44 个测试通过**、Ruff 干净、桌面/移动端浏览器审计没有 console
 错误或横向溢出。公开快照使用同一套已验证代码。导出后为演示额外运行了两条 10 秒
 V2 I2V 任务，没有修改代码或基准结论。
 

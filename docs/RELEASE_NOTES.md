@@ -1,10 +1,37 @@
-# Video Gateway v1.0.0 — release notes
+# Video Gateway release notes
+
+## v1.1.0 — per-key libraries
+
+**Release date:** 2026-11-18
+
+This release adds lightweight multi-user isolation without introducing a tenant
+database or separate budgets.
+
+- `API_KEYS` is now a list of **library slots**. Each key sees only its own
+  videos and batches; another key receives `404` for hidden resources.
+- The GPU queue, budget, Usage page, storage cap and worker health remain
+  shared. The existing soft budget is the only spending limit.
+- The first key is the **admin key** for billing sync, diagnostics, events and
+  cleanup. Other keys receive `403` on admin routes; the web Usage page hides
+  the admin controls.
+- Existing videos and batches migrate automatically to slot 0, so the primary
+  key keeps its library. Replace a key value in place to preserve its library;
+  append new keys for new users.
+- Media URLs remain short-lived capability URLs; direct media access with a
+  different Bearer key is denied.
+- Tests: **44 passed** (three new isolation/admin tests).
+
+Schema v2 adds an `owner` field to `videos` and `batches`. No external migration
+tool is required; back up `data/gateway.db` before upgrading a production
+instance.
+
+## v1.0.0 — initial public release
 
 **Release date:** 2026-11-18
 
 Video Gateway is a private, cost-aware AI video studio: an OpenAI-style
 asynchronous API and a small web workbench in front of MiniMax H3 / FastH3 on
-Modal. This is the first consolidated public release.
+Modal. This was the first consolidated public release.
 
 ## Highlights
 

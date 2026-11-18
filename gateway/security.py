@@ -39,24 +39,29 @@ def extract_api_key(request: Request) -> str | None:
     return key
 
 
-def constant_time_contains(candidate: str | None, valid: list[str]) -> bool:
-    if not candidate:
-        return False
-    matched = False
-    for key in valid:
-        # Compare every key so timing does not reveal which one matched.
-        if hmac.compare_digest(candidate, key):
-            matched = True
-    return matched
-
-
 class Auth:
     def __init__(self, settings):
         self.settings = settings
 
+    def key_owner(self, request: Request) -> int | None:
+        """Return the stable key slot, or None for an invalid/missing key.
+
+        The slot is the position in ``API_KEYS`` rather than a hash of the key.
+        That lets the operator replace a key value without losing that key's
+        library. Keep existing keys in place and append new keys.
+        """
+        key = extract_api_key(request)
+        if not key:
+            return None
+        matched: int | None = None
+        for index, valid in enumerate(self.settings.api_keys):
+            if hmac.compare_digest(key, valid):
+                matched = index
+        return matched
+
     def require(self, request: Request) -> str:
         key = extract_api_key(request)
-        if not constant_time_contains(key, self.settings.api_keys):
+        if self.key_owner(request) is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -71,8 +76,7 @@ class Auth:
         return key or ""
 
     def check_content_token(self, request: Request, video_id: str, purpose: str | None = None) -> bool:
-        if constant_time_contains(extract_api_key(request), self.settings.api_keys):
-            return True
+        """Validate a capability token only; API-key media access is owner-checked."""
         token = request.query_params.get("token")
         return bool(token and verify_content_token(self.settings, video_id, token, purpose=purpose))
 

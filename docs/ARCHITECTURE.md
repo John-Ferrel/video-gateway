@@ -90,12 +90,12 @@ Default: `MONTHLY_CREDITS_USD=30`, `MONTHLY_SOFT_BUDGET_USD=28`. The $2 gap is
 intentionally left for billing lag, volume storage and egress. The gateway never
 raises Modal's usage limit or spend limit.
 
-## SQLite schema (v1)
+## SQLite schema (v2)
 
 | Table | Purpose |
 |---|---|
-| `videos` | Job, prompt, dimensions, status, Modal call id, output paths, timings, cost, error, meta JSON |
-| `batches` | Batch id, created time, model, total, label |
+| `videos` | Job, owner slot, prompt, dimensions, status, Modal call id, output paths, timings, cost, error, meta JSON |
+| `batches` | Batch id, owner slot, created time, model, total, label |
 | `uploads` | Input reference provenance (path, MIME, bytes, hash) |
 | `ledger` | Billable events, unique per `(video_id, kind)` to avoid double counting |
 | `settings` | Billing baseline/cycle/source, manual invoice note |
@@ -124,6 +124,9 @@ warning, rather than losing a paid render.
 
 - The browser never receives the gateway API key in a media URL. Content and
   thumbnail URLs carry purpose-scoped HMAC tokens with a 1h TTL.
+- Video and batch rows carry an owner slot derived from the API-key position.
+  Library and lifecycle routes are owner-scoped; budget, Usage and the GPU queue
+  remain global. The first key is the admin key.
 - Uploads are decoded and re-encoded; SVG and remote URLs are rejected by default.
 - File paths are UUID-based and deletion is constrained to the data directory.
 - The worker has no gateway credentials; it only reads/writes Modal Volumes.

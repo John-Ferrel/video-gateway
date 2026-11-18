@@ -17,13 +17,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 ACTIVE_STATUSES = ("queued", "submitting", "processing", "downloading")
 TERMINAL_STATUSES = ("completed", "failed", "cancelled", "expired")
 
 VIDEO_COLUMNS = {
     "object",
+    "owner",
     "batch_id",
     "model",
     "prompt",
@@ -109,6 +110,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS videos (
                     id TEXT PRIMARY KEY,
                     object TEXT NOT NULL DEFAULT 'video',
+                    owner INTEGER NOT NULL DEFAULT 0,
                     batch_id TEXT,
                     model TEXT NOT NULL,
                     prompt TEXT NOT NULL,
@@ -158,6 +160,7 @@ class Database:
 
                 CREATE TABLE IF NOT EXISTS batches (
                     id TEXT PRIMARY KEY,
+                    owner INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     model TEXT NOT NULL,
                     total INTEGER NOT NULL,
@@ -203,6 +206,22 @@ class Database:
                     detail TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts DESC);
+                """
+            )
+            # v2: per-key video/batch libraries. Existing rows belong to the
+            # primary key (owner 0), preserving the pre-isolation library.
+            video_columns = {row["name"] for row in connection.execute("PRAGMA table_info(videos)")}
+            if "owner" not in video_columns:
+                connection.execute("ALTER TABLE videos ADD COLUMN owner INTEGER NOT NULL DEFAULT 0")
+            batch_columns = {row["name"] for row in connection.execute("PRAGMA table_info(batches)")}
+            if "owner" not in batch_columns:
+                connection.execute("ALTER TABLE batches ADD COLUMN owner INTEGER NOT NULL DEFAULT 0")
+            connection.executescript(
+                """
+                CREATE INDEX IF NOT EXISTS idx_videos_owner_created
+                    ON videos(owner, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_batches_owner_created
+                    ON batches(owner, created_at DESC);
                 """
             )
             connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
@@ -259,6 +278,7 @@ class Database:
         offset: int = 0,
         status: str | None = None,
         batch_id: str | None = None,
+        owner: int | None = None,
         since: str | None = None,
         include_deleted: bool = False,
     ) -> list[dict]:
@@ -266,6 +286,9 @@ class Database:
         params: list[Any] = []
         if not include_deleted:
             clauses.append("deleted_at IS NULL")
+        if owner is not None:
+            clauses.append("owner = ?")
+            params.append(owner)
         if status:
             clauses.append("status = ?")
             params.append(status)
@@ -365,13 +388,16 @@ class Database:
         )
 
     # ------------------------------------------------------------------ batches
-    def create_batch(self, *, model: str, total: int, label: str | None = None) -> dict:
+    def create_batch(
+        self, *, model: str, total: int, label: str | None = None, owner: int = 0
+    ) -> dict:
         batch_id = "batch_" + uuid.uuid4().hex
         now = iso()
         with self._connection() as connection:
             connection.execute(
-                "INSERT INTO batches (id, created_at, model, total, label) VALUES (?, ?, ?, ?, ?)",
-                (batch_id, now, model, total, label),
+                "INSERT INTO batches (id, owner, created_at, model, total, label) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (batch_id, owner, now, model, total, label),
             )
         return self.get_batch(batch_id) or {}
 
@@ -392,11 +418,16 @@ class Database:
         )
         return result
 
-    def list_batches(self, limit: int = 20) -> list[dict]:
+    def list_batches(self, limit: int = 20, owner: int | None = None) -> list[dict]:
+        query = "SELECT * FROM batches"
+        params: list[Any] = []
+        if owner is not None:
+            query += " WHERE owner = ?"
+            params.append(owner)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
         with self._connection() as connection:
-            rows = connection.execute(
-                "SELECT * FROM batches ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = connection.execute(query, tuple(params)).fetchall()
         return [self.get_batch(row["id"]) or dict(row) for row in rows]
 
     # ------------------------------------------------------------------ uploads

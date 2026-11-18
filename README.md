@@ -12,7 +12,7 @@ Gateway takes the opposite approach: a small, auditable control plane that keeps
 one GPU warm only while work exists, makes every paid job explicit, and survives
 restarts without resubmitting work.
 
-**Release:** `v1.0.0` · **Code license:** MIT · **Model license:** see
+**Release:** `v1.1.0` · **Code license:** MIT · **Model license:** see
 [Licenses](#licenses-and-attribution) · **Release notes:**
 [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md)
 
@@ -170,7 +170,7 @@ All deployment-specific values live in `.env` or the process environment. See
 | Variable | Default | Purpose |
 |---|---|---|
 | `VIDEO_BACKEND` | `auto` | `modal`, local demo, or auto-detect |
-| `API_KEYS` | generated file | Comma-separated Bearer keys |
+| `API_KEYS` | generated file | Comma-separated keys; each slot has its own library; first slot is admin |
 | `PUBLIC_BASE_URL` | empty | Public origin used in API/media URLs |
 | `MONTHLY_CREDITS_USD` / `MONTHLY_SOFT_BUDGET_USD` | `30` / `28` | Displayed credits and admission ceiling |
 | `MAX_JOB_ESTIMATE_USD` | `0.75` | Reject a single job above this worst-case estimate |
@@ -183,6 +183,19 @@ Prompt enhancement is optional. Point the `H3_PROMPT_ENHANCER_*` variables at an
 OpenAI-compatible chat endpoint; the example in `.env.example` uses
 `deepseek-v4.1-flash`. If the endpoint is unavailable, generation falls back to
 the written prompt.
+
+### Multiple keys and shared budget
+
+`API_KEYS` is a list of independent **library slots**. Each key can list, play,
+cancel, retry and delete only its own videos and batches. The GPU queue, budget,
+Usage page, storage cap and worker health are shared globally, so one key cannot
+exhaust a separate quota and total spend remains bounded by the existing soft
+budget.
+
+The first key in the list is the admin key for billing sync, diagnostics,
+events and cleanup. Replace a key value in place to keep its library; append a
+new key for a new person. Media URLs remain short-lived capability URLs, so do
+not forward them outside the intended user.
 
 ## Architecture
 
@@ -391,7 +404,7 @@ building. The local backend is an end-to-end path: it generates an MP4 with
 FFmpeg, writes a result, transcodes it, makes a poster, enforces the queue and
 serves Range requests.
 
-Reference verification: **41 tests passed**, Ruff clean and a desktop/mobile
+Reference verification: **44 tests passed**, Ruff clean and a desktop/mobile
 browser audit with no console errors or horizontal overflow. The public snapshot
 uses the same validated code. Two additional 10 s V2 I2V jobs were run after the
 code snapshot to produce the demo stills; they did not change the benchmark

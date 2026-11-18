@@ -7,6 +7,14 @@ All `/v1` and `/usage` routes require:
 Authorization: Bearer $VG_API_KEY
 ```
 
+### Multiple keys and isolation
+
+`API_KEYS` is a list of library slots. A key can read and mutate only videos and
+batches created by that key; another key receives `404` for hidden resources.
+Budget, Usage, storage, the GPU queue and worker health are global and shared.
+The first key is the only key allowed to call `/v1/admin/*`. Keep key order
+stable when rotating values; append new keys for new users.
+
 When Cloudflare Access is in front, API clients also need an Access **service
 token**:
 
@@ -192,7 +200,9 @@ Returns `total`, `status_counts`, `completed` (terminal count) and `videos`.
 
 `content_url` and `thumbnail_url` contain a short-lived HMAC token, so they work
 directly in `<video>`/`<img>` tags without an Authorization header. Requesting
-the video with a thumbnail token returns 401.
+the video with a thumbnail token returns 401. A Bearer key may also fetch its
+own media directly; another key's media returns 401 unless it presents the
+capability token. Do not forward signed media URLs outside the intended user.
 
 ## Usage
 
@@ -210,6 +220,7 @@ the video with a thumbnail token returns 401.
   "billed_usd": null,
   "billing_source": "estimated",
   "billing_error": "billing API unavailable",
+  "is_admin": true,
   "reserved_usd": 0.3204,
   "remaining_usd": 26.58,
   "percent_used": 5.1,
@@ -228,7 +239,8 @@ the video with a thumbnail token returns 401.
 
 ## Admin
 
-Admin routes require the same Bearer key.
+Admin routes require the **first** configured key (slot 0). Other keys receive
+`403 forbidden`; Usage remains visible to all keys because the budget is shared.
 
 | Route | Purpose |
 |---|---|

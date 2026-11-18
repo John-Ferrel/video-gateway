@@ -17,7 +17,7 @@ from gateway.config import Settings
 def settings(tmp_path: Path) -> Settings:
     value = Settings(
         data_dir=tmp_path / "data",
-        api_keys=["test-key"],
+        api_keys=["test-key", "second-key"],
         backend="local",
         max_queue=10,
         max_jobs_per_day=20,
@@ -40,6 +40,11 @@ def client(settings: Settings):
 @pytest.fixture()
 def auth_headers():
     return {"Authorization": "Bearer test-key"}
+
+
+@pytest.fixture()
+def second_headers():
+    return {"Authorization": "Bearer second-key"}
 
 
 def wait_for(client: TestClient, video_id: str, headers: dict, timeout: float = 40.0) -> dict:

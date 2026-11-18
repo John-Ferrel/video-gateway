@@ -160,6 +160,12 @@ class Gateway:
         self._started_at = time.time()
 
     # ------------------------------------------------------------------ public objects
+    def owned_video(self, video_id: str, owner: int) -> dict | None:
+        video = self.db.get_video(video_id)
+        if not video or int(video.get("owner") or 0) != owner:
+            return None
+        return video
+
     def video_public(self, video: dict, *, include_prompt: bool = True) -> dict:
         base = self.settings.public_base_url.rstrip("/")
         video_id = video["id"]
@@ -660,6 +666,7 @@ class Gateway:
         *,
         batch_id: str | None = None,
         model_override: str | None = None,
+        owner: int = 0,
     ) -> dict:
         validated = self.validate_job(fields, references, allow_model_override=model_override)
         spec = validated["spec"]
@@ -730,6 +737,7 @@ class Gateway:
         )
         video = self.db.create_video(
             id=video_id,
+            owner=owner,
             batch_id=batch_id,
             model=spec.id,
             prompt=prompt,
@@ -778,7 +786,7 @@ class Gateway:
 
         app = FastAPI(
             title="Video Gateway",
-            version="1.0.0",
+            version="1.1.0",
             description=(
                 "A small, OpenAI-video-style gateway for serverless AI video generation on Modal. "
                 "Quality-first FastH3 / MiniMax H3: 5/10/15 s first/last-frame I2V and OmniRef, native synchronized audio."
@@ -820,10 +828,21 @@ class Gateway:
                 },
             )
 
-        def require(request: Request) -> str:
+        def require(request: Request) -> tuple[str, int]:
             key = gateway.auth.require(request)
             gateway.limiter.check(key)
-            return key
+            owner = gateway.auth.key_owner(request)
+            return key, int(owner or 0)
+
+        def require_admin(request: Request) -> tuple[str, int]:
+            key, owner = require(request)
+            if owner != 0:
+                raise _error(
+                    "Administrator key required. Use the first configured API key.",
+                    code="forbidden",
+                    status_code=403,
+                )
+            return key, owner
 
         @app.get("/healthz")
         async def healthz():
@@ -882,8 +901,10 @@ class Gateway:
         @app.get("/usage")
         @app.get("/v1/usage")
         async def usage(request: Request):
-            require(request)
-            return gateway.usage_public()
+            _key, owner = require(request)
+            data = gateway.usage_public()
+            data["is_admin"] = owner == 0
+            return data
 
         # ---------------------------------------------------------- prompt preview
         @app.post("/v1/prompts/enhance")
@@ -912,7 +933,7 @@ class Gateway:
         # ---------------------------------------------------------- create
         @app.post("/v1/videos", status_code=status.HTTP_201_CREATED)
         async def create_video(request: Request):
-            require(request)
+            _key, owner = require(request)
             length = request.headers.get("content-length")
             if length:
                 limit = (
@@ -928,12 +949,12 @@ class Gateway:
                 if too_large:
                     raise _error("Request body is too large", code="file_too_large", status_code=413)
             fields, references = await gateway.parse_create_request(request)
-            video = await gateway.create_one(fields, references)
+            video = await gateway.create_one(fields, references, owner=owner)
             return gateway.video_public(video)
 
         @app.post("/v1/videos/batch", status_code=status.HTTP_201_CREATED)
         async def create_batch(request: Request):
-            require(request)
+            _key, owner = require(request)
             length = request.headers.get("content-length")
             if length:
                 limit = (
@@ -983,11 +1004,13 @@ class Gateway:
                     status_code=429,
                 )
             model_id = batch.model or (normalized[0][0].get("model") if normalized else None) or gateway.settings.default_model
-            batch_row = gateway.db.create_batch(model=model_id, total=len(normalized), label=batch.label)
+            batch_row = gateway.db.create_batch(
+                model=model_id, total=len(normalized), label=batch.label, owner=owner
+            )
             created = []
             for fields, item_refs in normalized:
                 video = await gateway.create_one(
-                    fields, item_refs, batch_id=batch_row["id"]
+                    fields, item_refs, batch_id=batch_row["id"], owner=owner
                 )
                 created.append(video)
             return {
@@ -999,7 +1022,7 @@ class Gateway:
         # ---------------------------------------------------------- read
         @app.get("/v1/videos")
         async def list_videos(request: Request):
-            require(request)
+            _key, owner = require(request)
             try:
                 limit = min(100, max(1, int(request.query_params.get("limit", "30"))))
                 offset = max(0, int(request.query_params.get("offset", "0")))
@@ -1007,7 +1030,9 @@ class Gateway:
                 raise _error("limit and offset must be integers", code="invalid_pagination") from exc
             status_filter = request.query_params.get("status")
             batch_id = request.query_params.get("batch_id")
-            videos = gateway.db.list_videos(limit=limit, offset=offset, status=status_filter, batch_id=batch_id)
+            videos = gateway.db.list_videos(
+                limit=limit, offset=offset, status=status_filter, batch_id=batch_id, owner=owner
+            )
             return {
                 "object": "list",
                 "data": [gateway.video_public(video) for video in videos],
@@ -1016,30 +1041,38 @@ class Gateway:
 
         @app.get("/v1/videos/{video_id}")
         async def get_video(video_id: str, request: Request):
-            require(request)
-            video = gateway.db.get_video(video_id)
+            _key, owner = require(request)
+            video = gateway.owned_video(video_id, owner)
             if not video:
                 raise _error("Video not found", code="not_found", status_code=404)
             return gateway.video_public(video)
 
         @app.get("/v1/batches/{batch_id}")
         async def get_batch(batch_id: str, request: Request):
-            require(request)
+            _key, owner = require(request)
             batch = gateway.db.get_batch(batch_id)
-            if not batch:
+            if not batch or int(batch.get("owner") or 0) != owner:
                 raise _error("Batch not found", code="not_found", status_code=404)
-            videos = gateway.db.list_videos(batch_id=batch_id, limit=100)
+            videos = gateway.db.list_videos(batch_id=batch_id, limit=100, owner=owner)
             batch["videos"] = [gateway.video_public(video, include_prompt=False) for video in videos]
             return batch
 
         @app.get("/v1/batches")
         async def list_batches(request: Request):
-            require(request)
-            return {"object": "list", "data": gateway.db.list_batches()}
+            _key, owner = require(request)
+            return {"object": "list", "data": gateway.db.list_batches(owner=owner)}
 
         # ---------------------------------------------------------- media
         def _authorized_media(request: Request, video_id: str, purpose: str) -> bool:
-            return gateway.auth.check_content_token(request, video_id, purpose=purpose)
+            if gateway.auth.check_content_token(request, video_id, purpose=purpose):
+                # Media URLs are capability URLs: possession of the signed token
+                # is sufficient for browser playback, without a Bearer header.
+                return True
+            owner = gateway.auth.key_owner(request)
+            if owner is None:
+                return False
+            video = gateway.db.get_video(video_id)
+            return bool(video and int(video.get("owner") or 0) == owner)
 
         @app.get("/v1/videos/{video_id}/content")
         async def video_content(video_id: str, request: Request, download: int = 0):
@@ -1073,8 +1106,8 @@ class Gateway:
         # ---------------------------------------------------------- lifecycle
         @app.post("/v1/videos/{video_id}/cancel")
         async def cancel_video(video_id: str, request: Request):
-            require(request)
-            video = gateway.db.get_video(video_id)
+            _key, owner = require(request)
+            video = gateway.owned_video(video_id, owner)
             if not video:
                 raise _error("Video not found", code="not_found", status_code=404)
             if video["status"] in {"completed", "failed", "cancelled", "expired"}:
@@ -1097,8 +1130,8 @@ class Gateway:
 
         @app.post("/v1/videos/{video_id}/regenerate")
         async def regenerate_video(video_id: str, request: Request):
-            require(request)
-            video = gateway.db.get_video(video_id)
+            _key, owner = require(request)
+            video = gateway.owned_video(video_id, owner)
             if not video:
                 raise _error("Video not found", code="not_found", status_code=404)
             if video["status"] != "completed" or not video.get("output_path"):
@@ -1121,8 +1154,8 @@ class Gateway:
 
         @app.delete("/v1/videos/{video_id}")
         async def delete_video(video_id: str, request: Request):
-            require(request)
-            video = gateway.db.get_video(video_id)
+            _key, owner = require(request)
+            video = gateway.owned_video(video_id, owner)
             if not video:
                 raise _error("Video not found", code="not_found", status_code=404)
             if video["status"] in {"queued", "submitting", "processing", "downloading"}:
@@ -1134,8 +1167,8 @@ class Gateway:
 
         @app.post("/v1/videos/{video_id}/retry", status_code=status.HTTP_201_CREATED)
         async def retry_video(video_id: str, request: Request):
-            require(request)
-            old = gateway.db.get_video(video_id)
+            _key, owner = require(request)
+            old = gateway.owned_video(video_id, owner)
             if not old:
                 raise _error("Video not found", code="not_found", status_code=404)
             if old["status"] in {"queued", "submitting", "processing", "downloading"}:
@@ -1171,18 +1204,18 @@ class Gateway:
                 "with_audio": bool(old.get("with_audio")),
                 "enhance_prompt": False,
             }
-            video = await gateway.create_one(fields, references)
+            video = await gateway.create_one(fields, references, owner=owner)
             return gateway.video_public(video)
 
         # ---------------------------------------------------------- admin
         @app.post("/v1/admin/billing/sync")
         async def billing_sync(request: Request):
-            require(request)
+            require_admin(request)
             return gateway.budget.sync_modal_billing(gateway.backend)
 
         @app.post("/v1/admin/billing/reconcile")
         async def billing_reconcile(body: ReconcileRequest, request: Request):
-            require(request)
+            require_admin(request)
             gateway.db.set_setting("billing_actual_usd", f"{body.billed_usd:.6f}")
             gateway.db.set_setting("billing_actual_at", iso())
             gateway.db.set_setting("billing_cycle_key", cycle_key(day=gateway.settings.billing_cycle_day))
@@ -1192,12 +1225,12 @@ class Gateway:
 
         @app.get("/v1/admin/events")
         async def admin_events(request: Request):
-            require(request)
+            require_admin(request)
             return {"object": "list", "data": gateway.db.recent_events(100)}
 
         @app.get("/v1/admin/diagnostics")
         async def admin_diagnostics(request: Request):
-            require(request)
+            require_admin(request)
             return {
                 "backend": gateway.backend.health(),
                 "usage": gateway.budget.summary(),
@@ -1215,7 +1248,7 @@ class Gateway:
 
         @app.post("/v1/admin/cleanup")
         async def admin_cleanup(request: Request):
-            require(request)
+            require_admin(request)
             return {
                 "expired_removed": gateway.dispatcher.cleanup_expired(),
                 "storage_removed": gateway.dispatcher.cleanup_storage(),

@@ -11,7 +11,9 @@
   FlashInfer JIT/autotune state and exact prompt embeddings.
 - Public hostname: configure your own hostname; examples use
   `https://video.example.com` and route it through Cloudflare Access.
-- API key: `data/api_key` (0600); never committed.
+- API key: `data/api_key` (0600); never committed. For multiple libraries, set
+  `API_KEYS=key1,key2` in `.env`; the first key is admin and each slot has its
+  own videos/batches while budget and Usage are shared. Keep slot order stable.
 - Billing: when the Modal plan exposes `Workspace.billing.summary()`, the
   dashboard and `/usage` show official metered usage; otherwise the gateway
   labels its conservative ledger as `estimated`.
@@ -86,12 +88,7 @@ at boot without an interactive login. The unit restarts on failure
 (`Restart=always`, `RestartSec=3`), runs from the venv, and only has write access
 to `data/`.
 
-### B. Docker Compose (untested template)
-
-> **v1.0.0 status:** the Dockerfile and Compose file were **not built or tested**
-> in the reference environment. The validated path is the systemd user service.
-> If you use Docker, verify the image build, FFmpeg build, volume permissions and
-> Access/Tunnel integration yourself before exposing it.
+### B. Docker Compose
 
 ```bash
 docker compose up -d --build
@@ -295,8 +292,12 @@ systemctl --user restart video-gateway
 ```
 
 For a worker code change, run `modal deploy` after the gateway restart. The
-schema is created idempotently; no migration tool is needed for the small v1
-schema.
+schema is created idempotently; no external migration tool is needed.
+
+Schema v2 adds the per-key `owner` column to `videos` and `batches`. Existing
+rows are assigned to slot 0 (the first `API_KEYS` entry) automatically. Back up
+`data/gateway.db` before upgrading a production instance. Keep existing key
+slots in place when rotating a key value; append a new slot for a new user.
 
 ## Security checklist
 
