@@ -24,6 +24,22 @@ CF-Access-Client-Secret: <secret>
 Authorization: Bearer $VG_API_KEY
 ```
 
+### Edge access note
+
+The reference deployment uses a narrow Cloudflare Access bypass for exactly
+these collection paths:
+
+- `/v1/models`
+- `/v1/videos`
+- `/v1/batches`
+- `/v1/prompts/enhance`
+- `/v1/usage`
+
+These are exact paths, not subtree wildcards. Object status, media, thumbnail,
+cancel, retry, regenerate and `/v1/batches/{id}` remain Access-protected and
+must be called with Access service-token headers (or from a browser with an
+Access session). The gateway Bearer key is required on every route.
+
 Errors use an OpenAI-style envelope:
 
 ```json

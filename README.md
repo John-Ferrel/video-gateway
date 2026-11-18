@@ -336,8 +336,12 @@ curl "$BASE_URL/v1/models" \
 ```
 
 Access is an outer identity layer and does **not** replace the gateway Bearer
-key. Do not disable Access or add an unauthenticated bypass without a deliberate
-decision. Setup, verification and the manual Access check are documented in
+key. If you use a narrow Access bypass, scope it to the five collection paths
+only: `/v1/models`, `/v1/videos`, `/v1/batches`, `/v1/prompts/enhance` and
+`/v1/usage`. Object status, media, thumbnail, cancel, retry, regenerate and
+`/v1/batches/{id}` remain Access-protected; clients must send service-token
+headers for those calls. Do not bypass `/v1/admin/*` or the whole `/v1/*` tree.
+Setup, verification and the manual Access check are documented in
 [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Security

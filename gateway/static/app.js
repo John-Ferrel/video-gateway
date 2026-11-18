@@ -914,23 +914,24 @@
     const host = location.origin;
     const mode = state.apiExampleMode || "text";
     const intro = [
-      "# Bearer auth is required. If Cloudflare Access protects /v1/*, add:",
-      '#   -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \\',
-      '#   -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \\',
+      "# Bearer auth is required.",
+      "# Access bypass covers only /v1/models, /v1/videos, /v1/batches,",
+      "# /v1/prompts/enhance and /v1/usage.",
       'export VG_API_KEY="vg_..."',
       `HOST="${host}"`,
       "",
     ];
     const examples = {
       text: [
-        "# Text to video (enhance_prompt=false uses your prompt exactly)",
+        "# Text to video (this collection path is bypassed at the edge)",
+        "# enhance_prompt=false uses your prompt exactly.",
         'curl -sS "$HOST/v1/videos" \\',
         '  -H "Authorization: Bearer $VG_API_KEY" \\',
         '  -H "Content-Type: application/json" \\',
         '  -d \'{"model":"fasth3-v2","prompt":"A red panda in a bamboo forest, cinematic morning light.","size":"auto","seconds":10,"enhance_prompt":false}\'',
       ],
       image: [
-        "# First-frame image to video (multipart)",
+        "# First-frame image to video (this collection path is bypassed at the edge)",
         'curl -sS "$HOST/v1/videos" \\',
         '  -H "Authorization: Bearer $VG_API_KEY" \\',
         '  -F model=fasth3-v2 \\',
@@ -939,11 +940,13 @@
         '  -F input_reference=@reference.jpg',
       ],
       poll: [
-        "# Poll, then download using the signed URL",
+        "# These object paths are NOT in the Access bypass list.",
+        "# Send Access service-token headers, or use a browser Access session.",
+        'CF=(-H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET")',
         'JOB_ID="video_..."',
-        'STATE=$(curl -sS "$HOST/v1/videos/$JOB_ID" -H "Authorization: Bearer $VG_API_KEY")',
+        'STATE=$(curl -sS "${CF[@]}" "$HOST/v1/videos/$JOB_ID" -H "Authorization: Bearer $VG_API_KEY")',
         'echo "$STATE" | jq -r \'.download_url\'',
-        'curl -L "$(echo "$STATE" | jq -r \'.download_url\')" -o clip.mp4',
+        'curl -L "${CF[@]}" "$(echo "$STATE" | jq -r \'.download_url\')" -o clip.mp4',
       ],
     };
     $("#api-example").textContent = intro.concat(examples[mode] || examples.text).join("\n");

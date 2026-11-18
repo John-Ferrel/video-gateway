@@ -307,8 +307,11 @@ curl "$BASE_URL/v1/models" \
   -H "Authorization: Bearer $VG_API_KEY"
 ```
 
-Access 是外层身份层，**不能替代**网关自身的 Bearer key。不要在没有明确决定的情况下
-关闭 Access 或添加未认证绕过。配置、验证和手动 Access 检查见
+Access 是外层身份层，**不能替代**网关自身的 Bearer key。如果使用窄范围 bypass，
+只放行五个集合路径：`/v1/models`、`/v1/videos`、`/v1/batches`、
+`/v1/prompts/enhance` 和 `/v1/usage`。对象状态、媒体、封面、取消、重试、regenerate
+和 `/v1/batches/{id}` 仍受 Access 保护；这些调用必须带 service-token 头。不要
+bypass `/v1/admin/*` 或整个 `/v1/*`。配置、验证和手动 Access 检查见
 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
 
 ## 安全模型

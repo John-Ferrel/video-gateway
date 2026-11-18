@@ -135,9 +135,27 @@ requires `Authorization: Bearer $VG_API_KEY`. Choose one:
     -H "Content-Type: application/json" \
     -d '{"prompt":"a fox in snow"}'
   ```
-- Service tokens are the supported programmatic path. Do not add an
-  unauthenticated bypass unless you have explicitly accepted the weaker outer
-  security posture; the gateway Bearer key remains required either way.
+- Service tokens are the safest programmatic path.
+
+**Narrow API bypass (reference deployment).** A second, path-scoped Access
+application bypasses exactly these collection paths:
+
+- `/v1/models`
+- `/v1/videos`
+- `/v1/batches`
+- `/v1/prompts/enhance`
+- `/v1/usage`
+
+No wildcard follows these paths. `/v1/videos/{id}`, `/v1/videos/{id}/content`,
+`/v1/videos/{id}/thumbnail`, `/v1/videos/{id}/cancel`, `/v1/videos/{id}/retry`,
+`/v1/videos/{id}/regenerate` and `/v1/batches/{id}` are still Access-protected.
+API clients must send the service-token headers for those calls; a browser with
+an Access session can use them directly. Never bypass `/v1/admin/*` or the whole
+`/v1/*` subtree.
+
+The gateway Bearer key remains required on every route. Bypass only shifts the
+outer Access layer; it does not disable gateway authentication, rate limiting,
+library isolation or the budget guard.
 
 Browser playback/download works after the Access login cookie is set; the
 `<video>` and download URLs use HMAC tokens, not the API key. If API clients

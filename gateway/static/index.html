@@ -313,7 +313,7 @@
               <button class="chip api-example-tab" data-api-mode="image" type="button">Image → video</button>
               <button class="chip api-example-tab" data-api-mode="poll" type="button">Poll / download</button>
             </div>
-            <p class="fineprint" id="api-example-note">Bearer auth is required. Optional Cloudflare Access uses service-token headers. Set <code>enhance_prompt</code> to <code>false</code> to send your prompt exactly; each key has its own library while Usage is shared.</p>
+            <p class="fineprint" id="api-example-note">Bearer auth is required. If Access bypass is enabled, it covers only <code>/v1/models</code>, <code>/v1/videos</code>, <code>/v1/batches</code>, <code>/v1/prompts/enhance</code> and <code>/v1/usage</code>. Object status, media, cancel, retry, regenerate and <code>/v1/batches/{id}</code> still need Access service-token headers. Set <code>enhance_prompt</code> to <code>false</code> to send your prompt exactly; each key has its own library while Usage is shared.</p>
             <pre id="api-example" class="code"></pre>
             <div class="api-example-footer">
               <button id="copy-api" class="btn btn-ghost btn-sm" type="button">Copy curl</button>
