@@ -307,9 +307,18 @@
             <div id="ledger" class="ledger"></div>
           </div>
           <div class="panel api-panel">
-            <div class="panel-head compact"><div><h2>API</h2><p class="muted">Same API the studio uses.</p></div></div>
+            <div class="panel-head compact"><div><h2>API</h2><p class="muted">Same API the studio uses. Copy a request or open <a href="/docs" target="_blank" rel="noreferrer">OpenAPI docs</a>.</p></div></div>
+            <div class="api-example-tabs" id="api-example-tabs" role="tablist" aria-label="API examples">
+              <button class="chip api-example-tab active" data-api-mode="text" type="button">Text → video</button>
+              <button class="chip api-example-tab" data-api-mode="image" type="button">Image → video</button>
+              <button class="chip api-example-tab" data-api-mode="poll" type="button">Poll / download</button>
+            </div>
+            <p class="fineprint" id="api-example-note">Bearer auth is required. Optional Cloudflare Access uses service-token headers. Set <code>enhance_prompt</code> to <code>false</code> to send your prompt exactly; each key has its own library while Usage is shared.</p>
             <pre id="api-example" class="code"></pre>
-            <button id="copy-api" class="btn btn-ghost btn-sm" type="button">Copy curl</button>
+            <div class="api-example-footer">
+              <button id="copy-api" class="btn btn-ghost btn-sm" type="button">Copy curl</button>
+              <a class="muted api-docs-link" href="/docs" target="_blank" rel="noreferrer">Full API reference →</a>
+            </div>
           </div>
         </div>
       </section>

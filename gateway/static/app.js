@@ -27,6 +27,7 @@
     currentBatchId: null,
     batchPollTimer: null,
     usage: null,
+    apiExampleMode: "text",
   };
 
   // ------------------------------------------------------------------ helpers
@@ -909,6 +910,45 @@
     }
   }
 
+  function renderApiExample() {
+    const host = location.origin;
+    const mode = state.apiExampleMode || "text";
+    const intro = [
+      "# Bearer auth is required. If Cloudflare Access protects /v1/*, add:",
+      '#   -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \\',
+      '#   -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \\',
+      'export VG_API_KEY="vg_..."',
+      `HOST="${host}"`,
+      "",
+    ];
+    const examples = {
+      text: [
+        "# Text to video (enhance_prompt=false uses your prompt exactly)",
+        'curl -sS "$HOST/v1/videos" \\',
+        '  -H "Authorization: Bearer $VG_API_KEY" \\',
+        '  -H "Content-Type: application/json" \\',
+        '  -d \'{"model":"fasth3-v2","prompt":"A red panda in a bamboo forest, cinematic morning light.","size":"auto","seconds":10,"enhance_prompt":false}\'',
+      ],
+      image: [
+        "# First-frame image to video (multipart)",
+        'curl -sS "$HOST/v1/videos" \\',
+        '  -H "Authorization: Bearer $VG_API_KEY" \\',
+        '  -F model=fasth3-v2 \\',
+        '  --form-string \'prompt=The character turns toward the camera and smiles; rain and city ambience.\' \\',
+        '  -F size=auto -F seconds=10 -F enhance_prompt=false \\',
+        '  -F input_reference=@reference.jpg',
+      ],
+      poll: [
+        "# Poll, then download using the signed URL",
+        'JOB_ID="video_..."',
+        'STATE=$(curl -sS "$HOST/v1/videos/$JOB_ID" -H "Authorization: Bearer $VG_API_KEY")',
+        'echo "$STATE" | jq -r \'.download_url\'',
+        'curl -L "$(echo "$STATE" | jq -r \'.download_url\')" -o clip.mp4',
+      ],
+    };
+    $("#api-example").textContent = intro.concat(examples[mode] || examples.text).join("\n");
+  }
+
   function renderUsage(usage) {
     $("#budget-remaining").textContent = fmtUSD(usage.remaining_usd);
     const official = usage.billed_usd == null ? null : Number(usage.billed_usd);
@@ -992,17 +1032,7 @@
       ? ledger.map((row) => `<div class="ledger-row"><span>${escapeHtml(row.kind)} · ${row.entries} run${row.entries === 1 ? "" : "s"}</span><span>${fmtUSD(row.total)}</span></div>`).join("")
       : `<p class="muted">No billable jobs yet.</p>`;
 
-    $("#api-example").textContent = [
-      "# create a video",
-      "curl -sS https://YOUR_HOST/v1/videos \\",
-      "  -H \"Authorization: Bearer $VG_API_KEY\" \\",
-      "  -H \"Content-Type: application/json\" \\",
-      "  -d '{\"model\":\"fasth3-v2\",\"prompt\":\"a fox in snow\",\"size\":\"1344x768\",\"seconds\":10}'",
-      "",
-      "# poll, then download",
-      "curl -sS https://YOUR_HOST/v1/videos/VIDEO_ID -H \"Authorization: Bearer $VG_API_KEY\"",
-      "curl -L \"https://YOUR_HOST/v1/videos/VIDEO_ID/content?token=…\" -o clip.mp4",
-    ].join("\n");
+    renderApiExample();
   }
 
   async function syncBilling() {
@@ -1126,6 +1156,11 @@
       $("#billing-reconcile").hidden = !$("#billing-reconcile").hidden;
     });
     $("#billing-reconcile").addEventListener("submit", reconcileBilling);
+    $$(".api-example-tab").forEach((button) => button.addEventListener("click", () => {
+      state.apiExampleMode = button.dataset.apiMode || "text";
+      $$(".api-example-tab").forEach((item) => item.classList.toggle("active", item === button));
+      renderApiExample();
+    }));
     $("#copy-api").addEventListener("click", () => {
       navigator.clipboard.writeText($("#api-example").textContent)
         .then(() => toast("curl example copied.", "ok")).catch(() => {});
