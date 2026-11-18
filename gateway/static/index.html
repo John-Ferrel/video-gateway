@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0d12" />
+  <title>Video Gateway — private AI video studio</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <div id="login" class="login-layer" hidden>
+    <form id="login-form" class="login-card" autocomplete="off">
+      <div class="brand brand-lg">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+        </span>
+        <span>Video<span class="brand-accent">Gateway</span></span>
+      </div>
+      <p class="login-copy">Your private, cost-aware AI video studio. Enter the gateway API key to continue.</p>
+      <label class="field">
+        <span>API key</span>
+        <input id="login-key" type="password" placeholder="vg_…" spellcheck="false" required />
+      </label>
+      <label class="checkline"><input id="login-remember" type="checkbox" /> Remember on this browser</label>
+      <button class="btn btn-primary btn-block" type="submit">Open studio</button>
+      <p class="login-hint">The key lives on the server in <code>data/api_key</code> (mode 0600), or in <code>API_KEYS</code>.</p>
+    </form>
+  </div>
+
+  <div id="app" class="shell" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>
+        </span>
+        <span>Video<span class="brand-accent">Gateway</span></span>
+      </div>
+      <nav class="tabs" aria-label="Sections">
+        <button class="tab active" data-view="studio">Studio</button>
+        <button class="tab" data-view="batch">Batch</button>
+        <button class="tab" data-view="library">Library</button>
+        <button class="tab" data-view="usage">Usage</button>
+      </nav>
+      <div class="top-status">
+        <span id="gpu-pill" class="pill pill-muted" title="Worker status"><span class="dot"></span><span>Worker</span></span>
+        <span id="budget-pill" class="pill" title="Remaining monthly budget">$— left</span>
+        <button id="logout" class="icon-btn" title="Lock studio" aria-label="Lock studio">
+          <svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <div id="setup-banner" class="banner" hidden>
+        <strong>Demo mode.</strong>
+        <span id="setup-banner-text">Set Modal credentials and restart the gateway to generate real video.</span>
+      </div>
+      <!-- ============================== STUDIO ============================== -->
+      <section id="view-studio" class="view active">
+        <div class="studio-grid">
+          <div class="panel compose">
+            <div class="panel-head">
+              <div>
+                <h1>Direct a scene</h1>
+                <p class="muted">First/last-frame or reference → 5–15 seconds of video with synchronized audio.</p>
+              </div>
+              <span id="studio-mode" class="pill pill-mint">Ready</span>
+            </div>
+
+            <label class="field prompt-field">
+              <span class="label-row"><span>Prompt</span><span id="prompt-count" class="counter">0 / 16000</span></span>
+              <textarea id="prompt" rows="5" maxlength="16000" placeholder="A lone astronaut walks across a violet desert at dusk, slow dolly-in, wind and distant thunder…"></textarea>
+            </label>
+            <div class="check-row" style="margin: -4px 0 10px;">
+              <label class="check-row" style="margin:0;">
+                <input id="enhance-prompt" type="checkbox" checked />
+                <span>Enhance prompt with official H3 prompt guidance</span>
+              </label>
+              <button id="preview-prompt" class="chip" type="button">Preview</button>
+            </div>
+            <div class="chips" id="prompt-chips">
+              <button class="chip" data-prompt="A serene Japanese garden after rain, koi circling under a wooden bridge, soft morning light, gentle water sounds.">Garden</button>
+              <button class="chip" data-prompt="An anime heroine in a red coat stands on a neon-lit Tokyo rooftop, hair whipping in the wind, rain and synth ambience.">Anime</button>
+              <button class="chip" data-prompt="Macro shot of a hummingbird hovering beside a scarlet flower, wings in slow motion, lush jungle audio.">Nature</button>
+              <button class="chip" data-prompt="A vintage train pulls out of a mountain station at sunrise, steam and brass whistle, cinematic wide shot.">Cinematic</button>
+            </div>
+
+            <div class="section-label">Model</div>
+            <div class="model-grid" id="model-grid"></div>
+
+            <div class="section-label">Reference frame <span class="optional">optional</span></div>
+            <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload a reference image">
+              <input id="reference" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+              <div class="drop-empty">
+                <svg viewBox="0 0 24 24" class="drop-icon"><path d="M4 16.5V5h16v14.5M4 16.5 9.5 11l4 4 2.5-2.5 4 4M9 8.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
+                <div><strong>Drop an image</strong> or click to choose</div>
+                <small id="reference-hint">JPG, PNG, WEBP · up to 12 MB · becomes the first frame</small>
+              </div>
+              <img id="reference-preview" alt="Reference preview" hidden />
+              <button id="clear-reference" class="clear-ref" type="button" hidden aria-label="Remove reference">×</button>
+            </div>
+
+            <div class="row-2">
+              <label class="field">
+                <span>Frame</span>
+                <select id="size"></select>
+              </label>
+              <label class="field">
+                <span>Duration</span>
+                <select id="duration"></select>
+              </label>
+            </div>
+
+            <div class="field" id="last-frame-field" hidden>
+              <span>Last frame <span class="optional">optional · first-and-last-frame</span></span>
+              <div class="file-picker">
+                <label class="file-picker-button" for="last-reference">Choose image</label>
+                <input id="last-reference" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+                <span id="last-reference-name" class="muted">No file selected</span>
+                <img id="last-reference-preview" alt="Last frame preview" hidden />
+                <button id="clear-last-reference" class="clear-ref" type="button" hidden aria-label="Remove last frame">×</button>
+              </div>
+            </div>
+
+            <div class="row-2">
+              <label class="field">
+                <span>Seed <span class="optional">optional</span></span>
+                <input id="seed" type="number" min="0" max="2147483647" placeholder="random" />
+              </label>
+            </div>
+
+            <div class="estimate-row">
+              <div>
+                <span class="muted">Estimated cost</span>
+                <strong id="estimate">—</strong>
+              </div>
+              <div class="estimate-note" id="estimate-note">Cold-start worst case, reserved from your monthly budget.</div>
+            </div>
+
+            <button id="generate" class="btn btn-primary btn-lg btn-block" type="button">
+              <span class="btn-label">Generate video</span>
+              <span class="btn-spinner" hidden></span>
+            </button>
+            <p class="fineprint">GPU wakes on demand and sleeps after 10s idle. One job at a time; the budget guard blocks overspend.</p>
+          </div>
+
+          <aside class="panel stage">
+            <div class="panel-head compact">
+              <div>
+                <h2 id="stage-title">Stage</h2>
+                <p class="muted" id="stage-sub">Your render appears here.</p>
+              </div>
+              <span id="stage-badge" class="pill pill-muted">Idle</span>
+            </div>
+
+            <div id="stage-empty" class="stage-empty">
+              <div class="reel">
+                <div class="reel-ring"></div>
+                <svg viewBox="0 0 24 24"><path d="M9 7.5v9l7.5-4.5L9 7.5Z"/></svg>
+              </div>
+              <h3>Nothing on the reel yet</h3>
+              <p class="muted">Write a prompt, optionally add a reference frame, and hit generate. The result will play here.</p>
+            </div>
+
+            <div id="stage-active" class="stage-active" hidden>
+              <div class="progress-visual">
+                <div class="progress-orbit"><span id="stage-percent">0%</span></div>
+                <div>
+                  <strong id="stage-stage">Queued</strong>
+                  <p class="muted" id="stage-detail">Waiting for the GPU worker…</p>
+                </div>
+              </div>
+              <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+              <div class="stage-meta">
+                <span id="stage-model">—</span>
+                <span id="stage-size">—</span>
+                <span id="stage-elapsed">0s</span>
+              </div>
+              <button id="cancel-job" class="btn btn-ghost btn-sm" type="button">Cancel job</button>
+            </div>
+
+            <div id="stage-result" class="stage-result" hidden>
+              <div class="video-frame">
+                <video id="player" controls playsinline preload="metadata"></video>
+              </div>
+              <div class="result-actions">
+                <a id="download-link" class="btn btn-primary btn-sm" download>Download MP4</a>
+                <button id="retry-job" class="btn btn-ghost btn-sm" type="button">New variation</button>
+                <button id="copy-prompt" class="btn btn-ghost btn-sm" type="button">Copy prompt</button>
+              </div>
+              <dl class="result-stats" id="result-stats"></dl>
+              <p class="result-prompt" id="result-prompt"></p>
+            </div>
+
+            <div id="stage-error" class="stage-error" hidden>
+              <div class="error-icon">!</div>
+              <h3>Render failed</h3>
+              <p id="stage-error-text" class="muted"></p>
+              <button id="retry-failed" class="btn btn-ghost btn-sm" type="button">Try again</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============================== BATCH ============================== -->
+      <section id="view-batch" class="view">
+        <div class="wide-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <div><h1>Batch queue</h1><p class="muted">One prompt per line. Jobs run serially on one warm GPU.</p></div>
+              <span class="pill pill-amber">Sequential</span>
+            </div>
+            <label class="field">
+              <span>Prompts <span class="optional">max 20</span></span>
+              <textarea id="batch-prompts" rows="10" placeholder="A fox trotting through fresh snow at dawn.&#10;A tiny robot watering a windowsill plant, warm afternoon light.&#10;Aerial shot of a fishing boat crossing glassy water."></textarea>
+            </label>
+            <div class="row-3">
+              <label class="field"><span>Model</span><select id="batch-model"></select></label>
+              <label class="field"><span>Frame</span><select id="batch-size"></select></label>
+              <label class="field"><span>Duration</span><select id="batch-duration"><option value="5">5 seconds</option><option value="10" selected>10 seconds</option><option value="15">15 seconds</option></select></label>
+              <label class="field"><span>Seed base <span class="optional">optional</span></span><input id="batch-seed" type="number" min="0" placeholder="random"></label>
+            </div>
+            <div class="estimate-row">
+              <div><span class="muted">Worst-case reserve</span><strong id="batch-estimate">—</strong></div>
+              <div class="estimate-note">Validated against the remaining monthly budget before anything is queued.</div>
+            </div>
+            <button id="batch-submit" class="btn btn-primary btn-block" type="button">Queue batch</button>
+          </div>
+          <div class="panel">
+            <div class="panel-head compact"><div><h2>Batch status</h2><p class="muted" id="batch-sub">No batch in this session.</p></div></div>
+            <div id="batch-list" class="batch-list"><p class="muted empty-note">Submitted prompts will appear here with live status.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== LIBRARY ============================== -->
+      <section id="view-library" class="view">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h1>Library</h1><p class="muted">Every render, its real estimated cost, and the seed that made it.</p></div>
+            <div class="row-actions">
+              <select id="library-filter" class="select-sm">
+                <option value="">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button id="library-refresh" class="btn btn-ghost btn-sm" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="library-grid" class="library-grid"></div>
+          <p id="library-empty" class="muted empty-note" hidden>No videos here yet. Make something in the Studio.</p>
+        </div>
+      </section>
+
+      <!-- ============================== USAGE ============================== -->
+      <section id="view-usage" class="view">
+        <div class="usage-hero">
+          <div class="panel budget-card">
+            <div class="panel-head compact">
+              <div><h2>Monthly budget</h2><p class="muted" id="cycle-label">—</p></div>
+              <span id="billing-source" class="pill pill-muted">estimated</span>
+            </div>
+            <div class="budget-big"><span id="budget-remaining">$—</span><small>remaining</small></div>
+            <div class="budget-bar"><div id="budget-bar-fill"></div></div>
+            <div class="budget-split">
+              <div><span class="muted" id="budget-spent-label">Budget used</span><strong id="budget-spent">$—</strong></div>
+              <div><span class="muted">Reserved</span><strong id="budget-reserved">$—</strong></div>
+              <div><span class="muted">Soft cap</span><strong id="budget-cap">$—</strong></div>
+              <div><span class="muted">Projected</span><strong id="budget-projected">$—</strong></div>
+            </div>
+            <div class="row-actions">
+              <button id="billing-sync" class="btn btn-ghost btn-sm" type="button">Sync Modal billing</button>
+              <button id="billing-reconcile-toggle" class="btn btn-ghost btn-sm" type="button">Enter invoice total</button>
+            </div>
+            <form id="billing-reconcile" class="inline-form" hidden>
+              <input id="billing-amount" type="number" step="0.01" min="0" placeholder="e.g. 4.37" required />
+              <button class="btn btn-primary btn-sm" type="submit">Save</button>
+            </form>
+            <p class="fineprint" id="billing-note">Modal Starter may not expose its billing API; the gateway then uses conservative per-job metering.</p>
+            <p class="fineprint" id="billing-detail"></p>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-card"><span class="stat-label">Videos this cycle</span><strong id="stat-videos">—</strong><small id="stat-completed">— completed</small></div>
+            <div class="stat-card"><span class="stat-label">Avg cost / video</span><strong id="stat-avg">—</strong><small>estimated, warm + cold</small></div>
+            <div class="stat-card"><span class="stat-label">Active / queued</span><strong id="stat-active">—</strong><small>one GPU at a time</small></div>
+            <div class="stat-card"><span class="stat-label">Storage</span><strong id="stat-storage">—</strong><small id="stat-storage-note">—</small></div>
+          </div>
+        </div>
+
+        <div class="usage-grid">
+          <div class="panel">
+            <div class="panel-head compact"><div><h2>Daily spend</h2><p class="muted">Estimated billed container time, by day.</p></div></div>
+            <div id="spend-chart" class="spend-chart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head compact"><div><h2>Worker</h2><p class="muted">Serverless GPU health and lifecycle.</p></div><span id="worker-badge" class="pill pill-muted">—</span></div>
+            <dl class="kv" id="worker-kv"></dl>
+          </div>
+          <div class="panel">
+            <div class="panel-head compact"><div><h2>Cost breakdown</h2><p class="muted">Ledger by category this cycle.</p></div></div>
+            <div id="ledger" class="ledger"></div>
+          </div>
+          <div class="panel api-panel">
+            <div class="panel-head compact"><div><h2>API</h2><p class="muted">Same API the studio uses.</p></div></div>
+            <pre id="api-example" class="code"></pre>
+            <button id="copy-api" class="btn btn-ghost btn-sm" type="button">Copy curl</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Video Gateway · FastH3 / MiniMax H3 · Modal serverless GPU</span>
+      <span id="footer-cost">$0.00 est. this cycle</span>
+    </footer>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <div id="video-modal" class="modal-layer" hidden>
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close" aria-label="Close">×</button>
+      <video id="modal-player" controls playsinline></video>
+      <div class="modal-meta" id="modal-meta"></div>
+    </div>
+  </div>
+
+  <div id="prompt-modal" class="modal-layer" hidden>
+    <div class="modal-card prompt-modal-card">
+      <button id="prompt-modal-close" class="modal-close" aria-label="Close">×</button>
+      <h2>Prompt preview</h2>
+      <p class="muted" id="prompt-preview-mode"></p>
+      <label class="field">
+        <span>Enhanced prompt</span>
+        <textarea id="enhanced-prompt-text" rows="14"></textarea>
+      </label>
+      <details>
+        <summary class="muted">Original prompt</summary>
+        <pre id="original-prompt-text"></pre>
+      </details>
+      <p class="fineprint" id="prompt-preview-error"></p>
+      <div class="prompt-modal-actions">
+        <button id="use-enhanced" class="btn btn-primary" type="button">Use enhanced</button>
+        <button id="edit-enhanced" class="btn" type="button">Edit</button>
+        <button id="keep-original" class="btn" type="button">Keep original</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

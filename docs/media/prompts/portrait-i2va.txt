@@ -1,0 +1,7 @@
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
+integrated_multimodal_description: [Shot 1] Photorealistic cinematic fashion portrait in the exact appearance, outfit and sunset pier setting of <Picture 1>; the young woman with long blonde hair, pink sheer overshirt, white top and shorts, gold chain bag and small black belt stands beside the weathered railing. Preserve her face, hair, outfit, body proportions, the red lighthouse, the sea, the boats and the warm sunset sky. She begins looking out over the water with both hands resting lightly on the railing; then she turns her shoulders toward the camera, tucks a strand of hair behind her ear with her right hand and takes one relaxed step forward, letting her left hand trail along the railing. A soft breeze lifts the sheer pink overshirt and her hair; the chain bag catches the low sun. Her expression warms into a natural, closed-mouth smile as she meets the lens. The camera arcs slowly around her with small amplitude and pushes in gently, keeping the lighthouse and sunset in the background. End on a poised medium shot, her hair settling, the sea shimmering behind her.
+
+overall_soundscape: Gentle waves lapping against the pier, a light breeze moving fabric, distant gulls and a faint harbor ambience; no dialogue.
+
+non_diegetic_music: Warm, understated cinematic pop with soft piano, brushed percussion and a mellow synth pad, slow and elegant.

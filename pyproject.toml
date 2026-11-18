@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-gateway"
+version = "1.0.0"
+description = "Lightweight gateway and web UI for serverless AI video generation on Modal"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.163.1",
+  "uvicorn[standard]==0.54.0",
+  "modal==1.6.4",
+  "httpx==0.28.1",
+  "pillow==13.0.0",
+  "python-multipart==0.0.34",
+  "imageio-ffmpeg==0.8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.2.0",
+  "pytest-asyncio==1.5.0",
+  "ruff==0.17.5",
+]
+
+[tool.setuptools]
+packages = ["gateway"]
+
+[tool.setuptools.package-data]
+gateway = ["static/*", "prompts/h3/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+# Broad exception handling is deliberate at job/volume/network boundaries:
+# a single failed poll or cleanup must not kill the dispatcher.
+ignore = ["BLE001", "S110", "PLW1510", "RUF100"]

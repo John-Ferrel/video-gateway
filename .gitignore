@@ -1,0 +1,35 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets and runtime data
+.env
+.env.local
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Test / benchmark artifacts
+.pytest_tmp/
+benchmark-output/
+reports/*.local.*
+tests/fixtures/generated/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local UI test tooling (not part of the deliverable)
+node_modules/
+package.json
+package-lock.json
+ui_test*.js
+ui_debug.js
